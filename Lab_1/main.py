@@ -11,7 +11,8 @@ config_data = parser()
 
 print(config_data)
 
-result_func = Function.call_function(config_data.n0, config_data.h, config_data.nk, config_data.a, config_data.b, config_data.c)
+result_func = Function.call_function(*tuple(config_data.__dict__.values()))
 
+print("Function: a * m.sin(x) + b * m.cos(x) + abs(a * m.sin(x) - b * m.cos(x)) + c")
 for x, y in result_func.items():
-    print(f"x:{x} >> y: {y}")
+    print(f"x: {x} >> y: {y}")

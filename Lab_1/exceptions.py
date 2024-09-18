@@ -1,8 +1,11 @@
+
 class ConfigParsingError(Exception):
     pass
 
+
 class UnsupportedFileTypeError(Exception):
     pass
+
 
 def handle_exceptions(func):
     def wrapper(*args, **kwargs):

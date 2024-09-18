@@ -6,9 +6,10 @@ import yaml
 import os
 
 from Lab_1.exceptions import handle_exceptions, UnsupportedFileTypeError, ConfigParsingError
+REQUIRED_KEYS = ('n0', 'h', 'nk', 'a', 'b', 'c')
 
 
-@dataclass
+@dataclass(frozen=True)
 class ConfigData:
     n0: int
     h: int
@@ -17,32 +18,45 @@ class ConfigData:
     b: float
     c: float
 
-    def __str__(self):
-        return (
-            f"\nConfiguration Data:\n"
-            f"n0: {self.n0}\n"
-            f"h: {self.h}\n"
-            f"nk: {self.nk}\n"
-            f"a: {self.a}\n"
-            f"b: {self.b}\n"
-            f"c: {self.c}\n"
+    def _txt_format(self) -> str:
+        return ','.join(f'{k} {v}' for k, v in self.__dict__.items())
 
-        )
+    def _csv_format(self) -> str:
+        return ','.join(f'{k} {v}' for k, v in self.__dict__.items())
+
+    def _json_format(self) -> str:
+        return f"{{\n{','.join(f'\t\"{k}\": {v}' for k, v in self.__dict__.items())}\n}}"
+
+    def __format__(self, format_spec):
+        match format_spec:
+            case 'txt': return self._txt_format()
+            case 'csv': return self._txt_format()
+            case 'json': return self._json_format()
+            case _: return self._txt_format()
+
+    def __str__(self):
+        return f"{self:txt}"
+
+    def __repr__(self):
+        return f"\nConfiguration Data:\n{'\n'.join(f'{k}:{v}' for k, v in self.__dict__.items())}"
 
 
 class UniversalConfigParser:
-    def __init__(self, file_path=None):
+    def __init__(self, file_path: str | None = None):
         self.file_path = file_path
         if not self.file_path:
             print("Файл не указан. Пожалуйста, введите параметры вручную.")
         elif not os.path.exists(self.file_path):
             raise FileNotFoundError(f"Файл не найден: {self.file_path}")
 
-
     @handle_exceptions
     def __call__(self) -> ConfigData:
         if not self.file_path:
             return self._manual_input()
+        file_path_end = self.file_path.split('.')[-1]
+        match file_path_end:
+            case 'json': return self._parse_json()
+
         if self.file_path.endswith('.json'):
             return self._parse_json()
         elif self.file_path.endswith('.xml'):
@@ -126,11 +140,10 @@ class UniversalConfigParser:
 
         return ConfigData(n0=n0, h=h, nk=nk, a=a, b=b, c=c)
 
-    def _validate_data(self, data: dict) -> ConfigData:
-        required_keys = ['n0', 'h', 'nk', 'a', 'b', 'c']
-        for key in required_keys:
-            if key not in data:
-                raise ConfigParsingError(f"Missing required key: {key}")
+    def _validate_data(self, data: dict[str, float | int]) -> ConfigData:
+
+        if not all(key in data for key in REQUIRED_KEYS):
+            raise ConfigParsingError(f"Missing required key")
 
         return ConfigData(
             n0=int(data['n0']),
