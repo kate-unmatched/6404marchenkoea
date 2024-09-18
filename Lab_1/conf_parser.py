@@ -5,6 +5,9 @@ import xml.etree.ElementTree as ET
 import yaml
 import os
 
+from Lab_1.exceptions import handle_exceptions, UnsupportedFileTypeError, ConfigParsingError
+
+
 @dataclass
 class ConfigData:
     n0: int
@@ -14,13 +17,32 @@ class ConfigData:
     b: float
     c: float
 
-class UniversalConfigParser:
-    def __init__(self, file_path):
-        self.file_path = file_path
-        if not os.path.exists(self.file_path):
-            raise FileNotFoundError(f"File not found: {self.file_path}")
+    def __str__(self):
+        return (
+            f"\nConfiguration Data:\n"
+            f"n0: {self.n0}\n"
+            f"h: {self.h}\n"
+            f"nk: {self.nk}\n"
+            f"a: {self.a}\n"
+            f"b: {self.b}\n"
+            f"c: {self.c}\n"
 
+        )
+
+
+class UniversalConfigParser:
+    def __init__(self, file_path=None):
+        self.file_path = file_path
+        if not self.file_path:
+            print("Файл не указан. Пожалуйста, введите параметры вручную.")
+        elif not os.path.exists(self.file_path):
+            raise FileNotFoundError(f"Файл не найден: {self.file_path}")
+
+
+    @handle_exceptions
     def __call__(self) -> ConfigData:
+        if not self.file_path:
+            return self._manual_input()
         if self.file_path.endswith('.json'):
             return self._parse_json()
         elif self.file_path.endswith('.xml'):
@@ -32,46 +54,89 @@ class UniversalConfigParser:
         elif self.file_path.endswith('.txt'):
             return self._parse_txt()
         else:
-            raise ValueError('Unsupported format')
+            raise UnsupportedFileTypeError(f"Unsupported format: {self.file_path}")
 
+    @handle_exceptions
     def _parse_json(self) -> ConfigData:
         with open(self.file_path, 'r') as file:
-            data = json.load(file)
-        return ConfigData(n0=data['n0'], h=data['h'], nk=data['nk'],
-                          a=data['a'], b=data['b'], c=data['c'])
+            try:
+                data = json.load(file)
+            except json.JSONDecodeError as e:
+                raise ConfigParsingError(f"JSON parse error: {e}")
+        return self._validate_data(data)
 
+    @handle_exceptions
     def _parse_xml(self) -> ConfigData:
-        tree = ET.parse(self.file_path)
+        try:
+            tree = ET.parse(self.file_path)
+        except ET.ParseError as e:
+            raise ConfigParsingError(f"XML parse error: {e}")
         root = tree.getroot()
-        return ConfigData(
-            n0=int(root.find('n0').text), h=int(root.find('h').text),
-            nk=int(root.find('nk').text), a=float(root.find('a').text),
-            b=float(root.find('b').text), c=float(root.find('c').text)
-        )
+        data = {child.tag: child.text for child in root}
+        return self._validate_data(data)
 
+    @handle_exceptions
     def _parse_csv(self) -> ConfigData:
         with open(self.file_path, newline='') as csvfile:
             reader = csv.DictReader(csvfile)
-            data = next(reader)
-            return ConfigData(
-                n0=int(data['n0']), h=int(data['h']), nk=int(data['nk']),
-                a=float(data['a']), b=float(data['b']), c=float(data['c'])
-            )
+            data = next(reader, None)
+            if not data:
+                raise ConfigParsingError("CSV is empty or malformed")
+        return self._validate_data(data)
 
+    @handle_exceptions
     def _parse_yaml(self) -> ConfigData:
         with open(self.file_path, 'r') as file:
-            data = yaml.safe_load(file)
-        return ConfigData(n0=data['n0'], h=data['h'], nk=data['nk'],
-                          a=data['a'], b=data['b'], c=data['c'])
+            try:
+                data = yaml.safe_load(file)
+            except yaml.YAMLError as e:
+                raise ConfigParsingError(f"YAML parse error: {e}")
+        return self._validate_data(data)
 
+    @handle_exceptions
     def _parse_txt(self) -> ConfigData:
         data = {}
         with open(self.file_path, 'r') as file:
-            line = file.readline().strip()
-            pairs = line.split()
-            for pair in pairs:
-                key, value = pair.split('=')
+            for line in file:
+                key, value = line.strip().split('=')
                 data[key.strip()] = float(value.strip()) if '.' in value else int(value.strip())
-        return ConfigData(n0=data['n0'], h=data['h'], nk=data['nk'],
-                          a=data['a'], b=data['b'], c=data['c'])
+        return self._validate_data(data)
 
+    def _manual_input(self) -> ConfigData:
+        def get_int_input(prompt):
+            while True:
+                try:
+                    return int(input(prompt))
+                except ValueError:
+                    print("Ошибка: введите целое число!")
+
+        def get_float_input(prompt):
+            while True:
+                try:
+                    return float(input(prompt))
+                except ValueError:
+                    print("Ошибка: введите число с плавающей точкой!")
+
+        n0 = get_int_input("Введите значение n0 (int): ")
+        h = get_int_input("Введите значение h (int): ")
+        nk = get_int_input("Введите значение nk (int): ")
+        a = get_float_input("Введите значение a (float): ")
+        b = get_float_input("Введите значение b (float): ")
+        c = get_float_input("Введите значение c (float): ")
+
+        return ConfigData(n0=n0, h=h, nk=nk, a=a, b=b, c=c)
+
+    def _validate_data(self, data: dict) -> ConfigData:
+        required_keys = ['n0', 'h', 'nk', 'a', 'b', 'c']
+        for key in required_keys:
+            if key not in data:
+                raise ConfigParsingError(f"Missing required key: {key}")
+
+        return ConfigData(
+            n0=int(data['n0']),
+            h=int(data['h']),
+            nk=int(data['nk']),
+            a=float(data['a']),
+            b=float(data['b']),
+            c=float(data['c'])
+        )
