@@ -27,12 +27,20 @@ class ConfigData:
     def _json_format(self) -> str:
         return f"{{\n{','.join(f'\t\"{k}\": {v}' for k, v in self.__dict__.items())}\n}}"
 
+    def _yaml_format(self) -> str:
+        return ','.join(f'{k} {v}' for k, v in self.__dict__.items())
+
+    def _xml_format(self) -> str:
+        return ','.join(f'{k} {v}' for k, v in self.__dict__.items())
+
     def __format__(self, format_spec):
         match format_spec:
             case 'txt': return self._txt_format()
-            case 'csv': return self._txt_format()
+            case 'csv': return self._csv_format()
             case 'json': return self._json_format()
-            case _: return self._txt_format()
+            case 'yaml': return self._yaml_format()
+            case 'xml': return self._xml_format()
+            case _: raise UnsupportedFileTypeError(f"Unsupported format: {format_spec}")
 
     def __str__(self):
         return f"{self:txt}"
@@ -56,19 +64,11 @@ class UniversalConfigParser:
         file_path_end = self.file_path.split('.')[-1]
         match file_path_end:
             case 'json': return self._parse_json()
-
-        if self.file_path.endswith('.json'):
-            return self._parse_json()
-        elif self.file_path.endswith('.xml'):
-            return self._parse_xml()
-        elif self.file_path.endswith('.csv'):
-            return self._parse_csv()
-        elif self.file_path.endswith('.yaml'):
-            return self._parse_yaml()
-        elif self.file_path.endswith('.txt'):
-            return self._parse_txt()
-        else:
-            raise UnsupportedFileTypeError(f"Unsupported format: {self.file_path}")
+            case 'xml': return self._parse_xml()
+            case 'csv': return self._parse_csv()
+            case 'yaml': return self._parse_yaml()
+            case 'txt': return self._parse_txt()
+            case '_': raise UnsupportedFileTypeError(f"Unsupported format: {self.file_path}")
 
     @handle_exceptions
     def _parse_json(self) -> ConfigData:
